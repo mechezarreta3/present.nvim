@@ -24,6 +24,11 @@ end
 ---@class present.Slide
 ---@field title string: The title of the slide
 ---@field body string: the body of the slide
+---@field blocks present.Block[]: A codeblock inside of a slide
+
+---@class present.Block
+---@field language string: The language of the code block.
+---@field body string: The body of the code block.
 
 --- Takes some lines and parses them?
 ---@param lines string[]: The lines in the buffer
@@ -32,7 +37,8 @@ local parse_slides = function(lines)
   local slides = { slides = {} }
   local current_slide = {
     title = "",
-    body = {}
+    body = {},
+    blocks = {},
   }
 
   local separator = "^#"
@@ -44,13 +50,41 @@ local parse_slides = function(lines)
       end
       current_slide = {
         title = line,
-        body = {}
+        body = {},
+        blocks = {}
       }
     else
       table.insert(current_slide.body, line)
     end
   end
   table.insert(slides.slides, current_slide)
+
+  for _, slide in ipairs(slides.slides) do
+    local block = {
+      language = nil,
+      body = "",
+    }
+    local inside_block = false
+    for _, line in ipairs(slide.body) do
+      if vim.startswith(line, "```") then
+        if not inside_block then
+          inside_block = true
+          block.language = string.sub(line, 4)
+        else
+          inside_block = false
+          block.body = vim.trim(block.body)
+          table.insert(slide.blocks, block)
+        end
+      else
+        -- OK, we are inside of a current markdown block
+        -- but it is not one of the guards.
+        -- so insert this text.
+        if inside_block then
+          block.body = block.body .. line .. "\n"
+        end
+      end
+    end
+  end
 
   return slides
 end
